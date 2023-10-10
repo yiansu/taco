@@ -6,7 +6,7 @@
 #define LEVEL_ONE   1
 #define LEVEL_TWO   2
 #define LEVEL_THREE 3
-#define CACHELINE   8
+#define CACHELINE   4
 #define START_ITER  0
 #define MAX_ITER    1
 #define LIVE_IN     2

@@ -12,7 +12,7 @@
 
 extern "C" {
 
-#define CACHELINE 8
+#define CACHELINE 4
 #define START_ITER 0
 #define MAX_ITER 1
 #define LIVE_IN_ENV 2
