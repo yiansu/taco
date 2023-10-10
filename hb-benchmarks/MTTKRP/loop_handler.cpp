@@ -360,7 +360,7 @@ int64_t loop_handler(
   uint64_t receivingLevel,
   uint64_t numLevels,
   task_memory_t *tmem,
-  int64_t (*slice_tasks[])(uint64_t *, uint64_t *, uint64_t, task_memory_t *),
+  int64_t (*slice_tasks[])(uint64_t, uint64_t, uint64_t *, uint64_t *, uint64_t, task_memory_t *),
   void (*leftover_tasks[])(uint64_t *, uint64_t *, uint64_t, task_memory_t *),
   uint64_t (*leftover_selector)(uint64_t, uint64_t)
 ) {
@@ -404,7 +404,9 @@ int64_t loop_handler(
   /*
    * Calculate the splitting point of the rest of iterations at splittingLevel
    */
-  uint64_t mid = (cxts[splittingLevel * CACHELINE + START_ITER] + 1 + cxts[splittingLevel * CACHELINE + MAX_ITER]) / 2;
+  uint64_t low = cxts[splittingLevel * CACHELINE + START_ITER];
+  uint64_t high = cxts[splittingLevel * CACHELINE + MAX_ITER];
+  uint64_t mid = (low + 1 + high) / 2;
 
   /*
    * Allocate the second context
@@ -414,38 +416,32 @@ int64_t loop_handler(
   /*
    * Construct the context at the splittingLevel for the second task
    */
-  cxtsSecond[splittingLevel * CACHELINE + START_ITER]   = mid;
-  cxtsSecond[splittingLevel * CACHELINE + MAX_ITER]     = cxts[splittingLevel * CACHELINE + MAX_ITER];
   cxtsSecond[splittingLevel * CACHELINE + LIVE_IN_ENV]  = cxts[splittingLevel * CACHELINE + LIVE_IN_ENV];
   cxtsSecond[splittingLevel * CACHELINE + LIVE_OUT_ENV] = cxts[splittingLevel * CACHELINE + LIVE_OUT_ENV];
 
-  /*
-   * Set the maxIteration for the first task
-   */
-  cxts[splittingLevel * CACHELINE + MAX_ITER] = mid;
-
   if (splittingLevel == receivingLevel) { // no leftover task needed
-    /*
-     * First task starts from the next iteration
-     */
-    cxts[receivingLevel * CACHELINE + START_ITER]++;
 
     taskparts::tpalrts_promote_via_nativefj([&] {
 #if defined(ENABLE_SOFTWARE_POLLING) && defined(CHUNK_LOOP_ITERATIONS) && defined(ADAPTIVE_CHUNKSIZE_CONTROL) && defined(ACC_SPMV_STATS)
       ass_record(cxts[0]);
 #endif
       task_memory_reset(tmem, receivingLevel);
-      slice_tasks[receivingLevel](cxts, constLiveIns, 0, tmem);
+      slice_tasks[receivingLevel](low+1, mid, cxts, constLiveIns, 0, tmem);
     }, [&] {
 #if defined(ENABLE_SOFTWARE_POLLING) && defined(CHUNK_LOOP_ITERATIONS) && defined(ADAPTIVE_CHUNKSIZE_CONTROL) && defined(ACC_SPMV_STATS)
       ass_record(cxtsSecond[0]);
 #endif
       task_memory_t hbmemSecond;
       task_memory_reset(&hbmemSecond, receivingLevel);
-      slice_tasks[receivingLevel](cxtsSecond, constLiveIns, 1, &hbmemSecond);
+      slice_tasks[receivingLevel](mid, high, cxtsSecond, constLiveIns, 1, &hbmemSecond);
     }, [] { }, taskparts::bench_scheduler());
   
   } else { // the first task needs to compose the leftover work
+
+    /*
+     * Set the maxIteration for the first task
+     */
+    cxts[splittingLevel * CACHELINE + MAX_ITER] = mid;
 
     /*
      * Set the startIter for the leftover work to start from
@@ -464,7 +460,7 @@ int64_t loop_handler(
     }, [&] {
       task_memory_t hbmemSecond;
       task_memory_reset(&hbmemSecond, splittingLevel);
-      slice_tasks[splittingLevel](cxtsSecond, constLiveIns, 1, &hbmemSecond);
+      slice_tasks[splittingLevel](mid, high, cxtsSecond, constLiveIns, 1, &hbmemSecond);
     }, [&] { }, taskparts::bench_scheduler());
   }
 

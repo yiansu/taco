@@ -33,11 +33,11 @@ void HEARTBEAT_loop1(int *B2_pos, int *B2_crd, int *B3_pos, int *B3_crd, int D2_
 void HEARTBEAT_loop2(int *B3_pos, int *B3_crd, int D2_dimension, int A2_dimension, int C2_dimension, double *A_vals, double *B_vals, double *C_vals, double *D_vals, uint64_t i, uint64_t kB, uint64_t k);
 void HEARTBEAT_loop3(int D2_dimension, int A2_dimension, int C2_dimension, double *A_vals, double *B_vals, double *C_vals, double *D_vals, uint64_t i, uint64_t k, uint64_t lB, uint64_t l);
 
-int64_t HEARTBEAT_loop0_slice(uint64_t *cxts, uint64_t *constLiveIns, uint64_t myIndex, task_memory_t *tmem);
-int64_t HEARTBEAT_loop1_slice(uint64_t *cxts, uint64_t *constLiveIns, uint64_t myIndex, task_memory_t *tmem);
-int64_t HEARTBEAT_loop2_slice(uint64_t *cxts, uint64_t *constLiveIns, uint64_t myIndex, task_memory_t *tmem);
-int64_t HEARTBEAT_loop3_slice(uint64_t *cxts, uint64_t *constLiveIns, uint64_t myIndex, task_memory_t *tmem);
-typedef int64_t (*sliceTasksPointer)(uint64_t *, uint64_t *, uint64_t, task_memory_t *);
+int64_t HEARTBEAT_loop0_slice(uint64_t startIter, uint64_t maxIter, uint64_t *cxts, uint64_t *constLiveIns, uint64_t myIndex, task_memory_t *tmem);
+int64_t HEARTBEAT_loop1_slice(uint64_t startIter, uint64_t maxIter, uint64_t *cxts, uint64_t *constLiveIns, uint64_t myIndex, task_memory_t *tmem);
+int64_t HEARTBEAT_loop2_slice(uint64_t startIter, uint64_t maxIter, uint64_t *cxts, uint64_t *constLiveIns, uint64_t myIndex, task_memory_t *tmem);
+int64_t HEARTBEAT_loop3_slice(uint64_t startIter, uint64_t maxIter, uint64_t *cxts, uint64_t *constLiveIns, uint64_t myIndex, task_memory_t *tmem);
+typedef int64_t (*sliceTasksPointer)(uint64_t, uint64_t, uint64_t *, uint64_t *, uint64_t, task_memory_t *);
 sliceTasksPointer slice_tasks[4] = {
   &HEARTBEAT_loop0_slice,
   &HEARTBEAT_loop1_slice,
@@ -115,16 +115,12 @@ void HEARTBEAT_loop0(int B1_dimension, int *B2_pos, int *B2_crd, int *B3_pos, in
     // allocate cxts
     uint64_t cxts[NUM_LEVELS * CACHELINE];
 
-    // set start/max iterations for loop0
-    cxts[LEVEL_ZERO * CACHELINE + START_ITER] = (uint64_t)0;
-    cxts[LEVEL_ZERO * CACHELINE + MAX_ITER] = (uint64_t)B1_dimension;
-
     // allocate the task memory struct and initialize
     task_memory_t tmem;
     heartbeat_start(&tmem);
 
     // invoke loop0 in heartbeat form
-    HEARTBEAT_loop0_slice(cxts, constLiveIns, 0, &tmem);
+    HEARTBEAT_loop0_slice((uint64_t)0, (uint64_t)B1_dimension, cxts, constLiveIns, 0, &tmem);
 
     run_heartbeat = true;
   } else {
@@ -158,10 +154,9 @@ void HEARTBEAT_loop3(int D2_dimension, int A2_dimension, int C2_dimension, doubl
 }
 
 // Transformed loops
-int64_t HEARTBEAT_loop0_slice(uint64_t *cxts, uint64_t *constLiveIns, uint64_t myIndex, task_memory_t *tmem) {
-  // load start/max iterations
-  uint64_t startIter = cxts[LEVEL_ZERO * CACHELINE + START_ITER];
-  uint64_t maxIter = cxts[LEVEL_ZERO * CACHELINE + MAX_ITER];
+int64_t HEARTBEAT_loop0_slice(uint64_t startIter, uint64_t maxIter, uint64_t *cxts, uint64_t *constLiveIns, uint64_t myIndex, task_memory_t *tmem) {
+  // store max iteration
+  cxts[LEVEL_ZERO * CACHELINE + MAX_ITER] = maxIter;
 
   // load const live-ins
   int *B2_pos = (int *)constLiveIns[0];
@@ -170,14 +165,11 @@ int64_t HEARTBEAT_loop0_slice(uint64_t *cxts, uint64_t *constLiveIns, uint64_t m
   for (; startIter < maxIter; startIter++) {
     // store current iteration for loop0
     cxts[LEVEL_ZERO * CACHELINE + START_ITER] = startIter;
-    // set start/max iterations for loop1
-    cxts[LEVEL_ONE * CACHELINE + START_ITER] = (uint64_t)B2_pos[startIter];
-    cxts[LEVEL_ONE * CACHELINE + MAX_ITER] = (uint64_t)B2_pos[(startIter + 1)];
 
     // store live-in for loop1
     cxts[LEVEL_ONE * CACHELINE + LIVE_IN] = (uint64_t)startIter;
 
-    rc = HEARTBEAT_loop1_slice(cxts, constLiveIns, 0, tmem);
+    rc = HEARTBEAT_loop1_slice((uint64_t)B2_pos[startIter], (uint64_t)B2_pos[(startIter + 1)], cxts, constLiveIns, 0, tmem);
 
     // check the status of rc because, might not need
     // to call the loop_handler in the process of returnning up
@@ -189,10 +181,9 @@ int64_t HEARTBEAT_loop0_slice(uint64_t *cxts, uint64_t *constLiveIns, uint64_t m
   return rc - 1;
 }
 
-int64_t HEARTBEAT_loop1_slice(uint64_t *cxts, uint64_t *constLiveIns, uint64_t myIndex, task_memory_t *tmem) {
-  // load start/max iterations
-  uint64_t startIter = cxts[LEVEL_ONE * CACHELINE + START_ITER];
-  uint64_t maxIter = cxts[LEVEL_ONE * CACHELINE + MAX_ITER];
+int64_t HEARTBEAT_loop1_slice(uint64_t startIter, uint64_t maxIter, uint64_t *cxts, uint64_t *constLiveIns, uint64_t myIndex, task_memory_t *tmem) {
+  // store max iteration
+  cxts[LEVEL_ONE * CACHELINE + MAX_ITER] = maxIter;
 
   // load const live-ins
   int *B2_crd = (int *)constLiveIns[1];
@@ -211,15 +202,12 @@ int64_t HEARTBEAT_loop1_slice(uint64_t *cxts, uint64_t *constLiveIns, uint64_t m
     uint64_t k = B2_crd[startIter];
     // store current iteration for loop1
     cxts[LEVEL_ONE * CACHELINE + START_ITER] = startIter;
-    // set start/max iterations for loop2
-    cxts[LEVEL_TWO * CACHELINE + START_ITER] = (uint64_t)B3_pos[startIter];
-    cxts[LEVEL_TWO * CACHELINE + MAX_ITER] = (uint64_t)B3_pos[(startIter + 1)];
 
     // store live-in for loop2
     liveInEnvNest[1] = (uint64_t)startIter;
     liveInEnvNest[2] = (uint64_t)k;
 
-    rc = HEARTBEAT_loop2_slice(cxts, constLiveIns, 0, tmem);
+    rc = HEARTBEAT_loop2_slice((uint64_t)B3_pos[startIter], (uint64_t)B3_pos[(startIter + 1)], cxts, constLiveIns, 0, tmem);
 
     // check the status of rc because, might not need
     // to call the loop_handler in the process of returnning up
@@ -231,10 +219,9 @@ int64_t HEARTBEAT_loop1_slice(uint64_t *cxts, uint64_t *constLiveIns, uint64_t m
   return rc - 1;
 }
 
-int64_t HEARTBEAT_loop2_slice(uint64_t *cxts, uint64_t *constLiveIns, uint64_t myIndex, task_memory_t *tmem) {
-  // load start/max iterations
-  uint64_t startIter = cxts[LEVEL_TWO * CACHELINE + START_ITER];
-  uint64_t maxIter = cxts[LEVEL_TWO * CACHELINE + MAX_ITER];
+int64_t HEARTBEAT_loop2_slice(uint64_t startIter, uint64_t maxIter, uint64_t *cxts, uint64_t *constLiveIns, uint64_t myIndex, task_memory_t *tmem) {
+  // store max iteration
+  cxts[LEVEL_TWO * CACHELINE + MAX_ITER] = maxIter;
 
   // load const live-ins
   int *B3_crd = (int *)constLiveIns[3];
@@ -257,15 +244,12 @@ int64_t HEARTBEAT_loop2_slice(uint64_t *cxts, uint64_t *constLiveIns, uint64_t m
     uint64_t l = B3_crd[startIter];
     // store current iteration for loop2
     cxts[LEVEL_TWO * CACHELINE + START_ITER] = startIter;
-    // set start/max iterations for loop3
-    cxts[LEVEL_THREE * CACHELINE + START_ITER] = (uint64_t)0;
-    cxts[LEVEL_THREE * CACHELINE + MAX_ITER] = (uint64_t)D2_dimension;
 
     // store live-in for loop3
     liveInEnvNest[2] = (uint64_t)startIter;
     liveInEnvNest[3] = (uint64_t)l;
 
-    rc = HEARTBEAT_loop3_slice(cxts, constLiveIns, 0, tmem);
+    rc = HEARTBEAT_loop3_slice((uint64_t)0, (uint64_t)D2_dimension, cxts, constLiveIns, 0, tmem);
 
     // check the status of rc because, might not need
     // to call the loop_handler in the process of returnning up
@@ -277,10 +261,9 @@ int64_t HEARTBEAT_loop2_slice(uint64_t *cxts, uint64_t *constLiveIns, uint64_t m
   return rc - 1;
 }
 
-int64_t HEARTBEAT_loop3_slice(uint64_t *cxts, uint64_t *constLiveIns, uint64_t myIndex, task_memory_t *tmem) {
-  // load start/max iterations
-  uint64_t startIter = cxts[LEVEL_THREE * CACHELINE + START_ITER];
-  uint64_t maxIter = cxts[LEVEL_THREE * CACHELINE + MAX_ITER];
+int64_t HEARTBEAT_loop3_slice(uint64_t startIter, uint64_t maxIter, uint64_t *cxts, uint64_t *constLiveIns, uint64_t myIndex, task_memory_t *tmem) {
+  // store max iteration
+  cxts[LEVEL_THREE * CACHELINE + MAX_ITER] = maxIter;
 
   // load const live-ins
   int D2_dimension = (int)constLiveIns[4];
@@ -389,25 +372,25 @@ int64_t HEARTBEAT_loop3_slice(uint64_t *cxts, uint64_t *constLiveIns, uint64_t m
 // Leftover tasks
 void HEARTBEAT_loop_3_0_leftover(uint64_t *cxts, uint64_t *constLiveIns, uint64_t myIndex, task_memory_t *tmem) {
   int64_t rc = 0;
-  rc = HEARTBEAT_loop3_slice(cxts, constLiveIns, myIndex, tmem);
+  rc = HEARTBEAT_loop3_slice(cxts[LEVEL_THREE * CACHELINE + START_ITER], cxts[LEVEL_THREE * CACHELINE + MAX_ITER], cxts, constLiveIns, myIndex, tmem);
   if (rc > 0) {
     return;
   }
 
   cxts[LEVEL_TWO * CACHELINE + START_ITER]++;
-  rc = HEARTBEAT_loop2_slice(cxts, constLiveIns, myIndex, tmem);
+  rc = HEARTBEAT_loop2_slice(cxts[LEVEL_TWO * CACHELINE + START_ITER], cxts[LEVEL_TWO * CACHELINE + MAX_ITER], cxts, constLiveIns, myIndex, tmem);
   if (rc > 0) {
     return;
   }
 
   cxts[LEVEL_ONE * CACHELINE + START_ITER]++;
-  rc = HEARTBEAT_loop1_slice(cxts, constLiveIns, myIndex, tmem);
+  rc = HEARTBEAT_loop1_slice(cxts[LEVEL_ONE * CACHELINE + START_ITER], cxts[LEVEL_ONE * CACHELINE + MAX_ITER], cxts, constLiveIns, myIndex, tmem);
   if (rc > 0) {
     return;
   }
 
   cxts[LEVEL_ZERO * CACHELINE + START_ITER]++;
-  rc = HEARTBEAT_loop0_slice(cxts, constLiveIns, myIndex, tmem);
+  rc = HEARTBEAT_loop0_slice(cxts[LEVEL_ZERO * CACHELINE + START_ITER], cxts[LEVEL_ZERO * CACHELINE + MAX_ITER], cxts, constLiveIns, myIndex, tmem);
   if (rc > 0) {
     return;
   }
@@ -417,13 +400,13 @@ void HEARTBEAT_loop_3_0_leftover(uint64_t *cxts, uint64_t *constLiveIns, uint64_
 
 void HEARTBEAT_loop_3_2_leftover(uint64_t *cxts, uint64_t *constLiveIns, uint64_t myIndex, task_memory_t *tmem) {
   int64_t rc = 0;
-  rc = HEARTBEAT_loop3_slice(cxts, constLiveIns, myIndex, tmem);
+  rc = HEARTBEAT_loop3_slice(cxts[LEVEL_THREE * CACHELINE + START_ITER], cxts[LEVEL_THREE * CACHELINE + MAX_ITER], cxts, constLiveIns, myIndex, tmem);
   if (rc > 0) {
     return;
   }
 
   cxts[LEVEL_TWO * CACHELINE + START_ITER]++;
-  rc = HEARTBEAT_loop2_slice(cxts, constLiveIns, myIndex, tmem);
+  rc = HEARTBEAT_loop2_slice(cxts[LEVEL_TWO * CACHELINE + START_ITER], cxts[LEVEL_TWO * CACHELINE + MAX_ITER], cxts, constLiveIns, myIndex, tmem);
   if (rc > 0) {
     return;
   }
@@ -433,19 +416,19 @@ void HEARTBEAT_loop_3_2_leftover(uint64_t *cxts, uint64_t *constLiveIns, uint64_
 
 void HEARTBEAT_loop_3_1_leftover(uint64_t *cxts, uint64_t *constLiveIns, uint64_t myIndex, task_memory_t *tmem) {
   int64_t rc = 0;
-  rc = HEARTBEAT_loop3_slice(cxts, constLiveIns, myIndex, tmem);
+  rc = HEARTBEAT_loop3_slice(cxts[LEVEL_THREE * CACHELINE + START_ITER], cxts[LEVEL_THREE * CACHELINE + MAX_ITER], cxts, constLiveIns, myIndex, tmem);
   if (rc > 0) {
     return;
   }
 
   cxts[LEVEL_TWO * CACHELINE + START_ITER]++;
-  rc = HEARTBEAT_loop2_slice(cxts, constLiveIns, myIndex, tmem);
+  rc = HEARTBEAT_loop2_slice(cxts[LEVEL_TWO * CACHELINE + START_ITER], cxts[LEVEL_TWO * CACHELINE + MAX_ITER], cxts, constLiveIns, myIndex, tmem);
   if (rc > 0) {
     return;
   }
 
   cxts[LEVEL_ONE * CACHELINE + START_ITER]++;
-  rc = HEARTBEAT_loop1_slice(cxts, constLiveIns, myIndex, tmem);
+  rc = HEARTBEAT_loop1_slice(cxts[LEVEL_ONE * CACHELINE + START_ITER], cxts[LEVEL_ONE * CACHELINE + MAX_ITER], cxts, constLiveIns, myIndex, tmem);
   if (rc > 0) {
     return;
   }
@@ -455,19 +438,19 @@ void HEARTBEAT_loop_3_1_leftover(uint64_t *cxts, uint64_t *constLiveIns, uint64_
 
 void HEARTBEAT_loop_2_0_leftover(uint64_t *cxts, uint64_t *constLiveIns, uint64_t myIndex, task_memory_t *tmem) {
   int64_t rc = 0;
-  rc = HEARTBEAT_loop2_slice(cxts, constLiveIns, myIndex, tmem);
+  rc = HEARTBEAT_loop2_slice(cxts[LEVEL_TWO * CACHELINE + START_ITER], cxts[LEVEL_TWO * CACHELINE + MAX_ITER], cxts, constLiveIns, myIndex, tmem);
   if (rc > 0) {
     return;
   }
 
   cxts[LEVEL_ONE * CACHELINE + START_ITER]++;
-  rc = HEARTBEAT_loop1_slice(cxts, constLiveIns, myIndex, tmem);
+  rc = HEARTBEAT_loop1_slice(cxts[LEVEL_ONE * CACHELINE + START_ITER], cxts[LEVEL_ONE * CACHELINE + MAX_ITER], cxts, constLiveIns, myIndex, tmem);
   if (rc > 0) {
     return;
   }
 
   cxts[LEVEL_ZERO * CACHELINE + START_ITER]++;
-  rc = HEARTBEAT_loop0_slice(cxts, constLiveIns, myIndex, tmem);
+  rc = HEARTBEAT_loop0_slice(cxts[LEVEL_ZERO * CACHELINE + START_ITER], cxts[LEVEL_ZERO * CACHELINE + MAX_ITER], cxts, constLiveIns, myIndex, tmem);
   if (rc > 0) {
     return;
   }
@@ -477,13 +460,13 @@ void HEARTBEAT_loop_2_0_leftover(uint64_t *cxts, uint64_t *constLiveIns, uint64_
 
 void HEARTBEAT_loop_2_1_leftover(uint64_t *cxts, uint64_t *constLiveIns, uint64_t myIndex, task_memory_t *tmem) {
   int64_t rc = 0;
-  rc = HEARTBEAT_loop2_slice(cxts, constLiveIns, myIndex, tmem);
+  rc = HEARTBEAT_loop2_slice(cxts[LEVEL_TWO * CACHELINE + START_ITER], cxts[LEVEL_TWO * CACHELINE + MAX_ITER], cxts, constLiveIns, myIndex, tmem);
   if (rc > 0) {
     return;
   }
 
   cxts[LEVEL_ONE * CACHELINE + START_ITER]++;
-  rc = HEARTBEAT_loop1_slice(cxts, constLiveIns, myIndex, tmem);
+  rc = HEARTBEAT_loop1_slice(cxts[LEVEL_ONE * CACHELINE + START_ITER], cxts[LEVEL_ONE * CACHELINE + MAX_ITER], cxts, constLiveIns, myIndex, tmem);
   if (rc > 0) {
     return;
   }
@@ -493,13 +476,13 @@ void HEARTBEAT_loop_2_1_leftover(uint64_t *cxts, uint64_t *constLiveIns, uint64_
 
 void HEARTBEAT_loop_1_0_leftover(uint64_t *cxts, uint64_t *constLiveIns, uint64_t myIndex, task_memory_t *tmem) {
   int64_t rc = 0;
-  rc = HEARTBEAT_loop1_slice(cxts, constLiveIns, myIndex, tmem);
+  rc = HEARTBEAT_loop1_slice(cxts[LEVEL_ONE * CACHELINE + START_ITER], cxts[LEVEL_ONE * CACHELINE + MAX_ITER], cxts, constLiveIns, myIndex, tmem);
   if (rc > 0) {
     return;
   }
 
   cxts[LEVEL_ZERO * CACHELINE + START_ITER]++;
-  rc = HEARTBEAT_loop0_slice(cxts, constLiveIns, myIndex, tmem);
+  rc = HEARTBEAT_loop0_slice(cxts[LEVEL_ZERO * CACHELINE + START_ITER], cxts[LEVEL_ZERO * CACHELINE + MAX_ITER], cxts, constLiveIns, myIndex, tmem);
   if (rc > 0) {
     return;
   }

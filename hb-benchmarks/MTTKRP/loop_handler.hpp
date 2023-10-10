@@ -45,7 +45,7 @@ int64_t loop_handler(
   uint64_t receivingLevel,
   uint64_t numLevels,
   task_memory_t *tmem,
-  int64_t (*slice_tasks[])(uint64_t *, uint64_t *, uint64_t, task_memory_t *),
+  int64_t (*slice_tasks[])(uint64_t, uint64_t, uint64_t *, uint64_t *, uint64_t, task_memory_t *),
   void (*leftover_tasks[])(uint64_t *, uint64_t *, uint64_t, task_memory_t *),
   uint64_t (*leftover_selector)(uint64_t, uint64_t)
 );
