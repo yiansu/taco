@@ -274,11 +274,16 @@ void ass_record(uint64_t startIter) {
 #endif
 
 __attribute__((always_inline))
-void task_memory_reset(task_memory_t *tmem, uint64_t startingLevel) {
+void task_offset_reset(task_memory_t *tmem, uint64_t startingLevel) {
   /*
    * Set the starting level
    */
   tmem->startingLevel = startingLevel;
+}
+
+__attribute__((always_inline))
+void task_memory_reset(task_memory_t *tmem, uint64_t startingLevel) {
+  task_offset_reset(tmem, startingLevel);
 
 #if defined(ENABLE_SOFTWARE_POLLING)
   /*
@@ -374,12 +379,14 @@ int64_t loop_handler(
   return disable_promotion;
 #endif
 
+  uint64_t offset = tmem->startingLevel;
+
   /*
    * Decide the splitting level
    */
   uint64_t splittingLevel = receivingLevel + 1;
-  for (uint64_t level = tmem->startingLevel; level <= receivingLevel; level++) {
-    if (cxts[level * CACHELINE + MAX_ITER] - cxts[level * CACHELINE + START_ITER] >= 2) {
+  for (uint64_t level = offset; level <= receivingLevel; level++) {
+    if (cxts[(level-offset) * CACHELINE + MAX_ITER] - cxts[(level-offset) * CACHELINE + START_ITER] >= 2) {
       splittingLevel = level;
       break;
     }
@@ -404,20 +411,20 @@ int64_t loop_handler(
   /*
    * Calculate the splitting point of the rest of iterations at splittingLevel
    */
-  uint64_t low = cxts[splittingLevel * CACHELINE + START_ITER];
-  uint64_t high = cxts[splittingLevel * CACHELINE + MAX_ITER];
+  uint64_t low = cxts[(splittingLevel-offset) * CACHELINE + START_ITER];
+  uint64_t high = cxts[(splittingLevel-offset) * CACHELINE + MAX_ITER];
   uint64_t mid = (low + 1 + high) / 2;
 
   /*
    * Allocate the second context
    */
-  uint64_t *cxtsSecond = (uint64_t *)__builtin_alloca(numLevels * CACHELINE * sizeof(uint64_t));
+  uint64_t *cxtsSecond = (uint64_t *)__builtin_alloca((receivingLevel - splittingLevel + 1) * CACHELINE * sizeof(uint64_t));
 
   /*
    * Construct the context at the splittingLevel for the second task
    */
-  cxtsSecond[splittingLevel * CACHELINE + LIVE_IN_ENV]  = cxts[splittingLevel * CACHELINE + LIVE_IN_ENV];
-  cxtsSecond[splittingLevel * CACHELINE + LIVE_OUT_ENV] = cxts[splittingLevel * CACHELINE + LIVE_OUT_ENV];
+  cxtsSecond[LIVE_IN_ENV]  = cxts[(splittingLevel-offset) * CACHELINE + LIVE_IN_ENV];
+  cxtsSecond[LIVE_OUT_ENV] = cxts[(splittingLevel-offset) * CACHELINE + LIVE_OUT_ENV];
 
   if (splittingLevel == receivingLevel) { // no leftover task needed
 
@@ -426,7 +433,8 @@ int64_t loop_handler(
       ass_record(cxts[0]);
 #endif
       task_memory_reset(tmem, receivingLevel);
-      slice_tasks[receivingLevel](low+1, mid, cxts, constLiveIns, 0, tmem);
+      slice_tasks[receivingLevel](low+1, mid, &cxts[(splittingLevel-offset) * CACHELINE], constLiveIns, 0, tmem);
+      task_offset_reset(tmem, offset);
     }, [&] {
 #if defined(ENABLE_SOFTWARE_POLLING) && defined(CHUNK_LOOP_ITERATIONS) && defined(ADAPTIVE_CHUNKSIZE_CONTROL) && defined(ACC_SPMV_STATS)
       ass_record(cxtsSecond[0]);
@@ -441,14 +449,7 @@ int64_t loop_handler(
     /*
      * Set the maxIteration for the first task
      */
-    cxts[splittingLevel * CACHELINE + MAX_ITER] = mid;
-
-    /*
-     * Set the startIter for the leftover work to start from
-     */
-    for (uint64_t level = splittingLevel + 1; level <= receivingLevel; level++) {
-      cxts[level * CACHELINE + START_ITER]++;
-    }
+    cxts[(splittingLevel-offset) * CACHELINE + MAX_ITER] = mid;
 
     /*
      * Determine which leftover task to run
@@ -456,7 +457,8 @@ int64_t loop_handler(
     uint64_t leftoverTaskIndex = leftover_selector(receivingLevel, splittingLevel);
     taskparts::tpalrts_promote_via_nativefj([&] {
       task_memory_reset(tmem, splittingLevel);
-      (*leftover_tasks[leftoverTaskIndex])(cxts, constLiveIns, 0, tmem);
+      (*leftover_tasks[leftoverTaskIndex])(&cxts[(splittingLevel-offset) * CACHELINE], constLiveIns, 0, tmem);
+      task_offset_reset(tmem, offset);
     }, [&] {
       task_memory_t hbmemSecond;
       task_memory_reset(&hbmemSecond, splittingLevel);
