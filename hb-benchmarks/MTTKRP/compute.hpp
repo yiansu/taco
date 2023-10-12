@@ -343,7 +343,10 @@ void MTTKRP_hbc(
 }
 
 #elif defined(USE_HB_MANUAL)
-#include "compute_hbm.hpp"
+// #include "compute_hbm.hpp"
+#include "compute_hbm_0_2.hpp"
+// #include "compute_hbm_0_2_3.hpp"
+// #include "compute_hbm_1.hpp"
 #endif
 
 int compute(taco_tensor_t *A, taco_tensor_t *B, taco_tensor_t *C, taco_tensor_t *D) {
