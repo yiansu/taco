@@ -34,7 +34,7 @@ int main(int argc, char* argv[]) {
   Tensor<double> A({B.getDimension(0), B.getDimension(1)}, dd);
   A.pack();
 
-  // assemble(A.getTacoTensorT(), B.getTacoTensorT(), c.getTacoTensorT());
+  assemble(A.getTacoTensorT(), B.getTacoTensorT(), c.getTacoTensorT());
   compute(A.getTacoTensorT(), B.getTacoTensorT(), c.getTacoTensorT());
 
   return 0;
