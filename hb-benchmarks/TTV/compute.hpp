@@ -174,6 +174,12 @@ void TTV_forkjoin(
 }
 
 #elif defined(USE_HB_COMPILER)
+#if defined(RUN_HEARTBEAT)
+  bool run_heartbeat = true;
+#else
+  bool run_heartbeat = false;
+#endif
+
 double HEARTBEAT_loop2(
   uint64_t startIter,
   uint64_t maxIter,
@@ -225,12 +231,6 @@ void HEARTBEAT_loop0(
     HEARTBEAT_loop1(B2_pos[i], B2_pos[(i + 1)], i, B2_crd, A2_dimension, B3_pos, B3_crd, B_vals, c_vals, A_vals);
   }
 }
-
-#if defined(RUN_HEARTBEAT)
-  bool run_heartbeat = true;
-#else
-  bool run_heartbeat = false;
-#endif
 
 void TTV_hbc(
   int B1_dimension,

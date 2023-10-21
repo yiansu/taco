@@ -16,7 +16,11 @@ int main(int argc, char* argv[]) {
   Format dss({Dense, Sparse, Sparse});
   Format d({Dense});
 
-  Tensor<double> B = read("nell-2.tns", dss);
+  auto tensor_file = "../nell-2.tns";
+  if (const auto env_p = std::getenv("INPUT_TENSOR")) {
+    tensor_file = env_p;
+  }
+  Tensor<double> B = read(tensor_file, dss);
   for (auto dim : B.getDimensions()) {
     printf("dim = %d\n", dim);
   }
