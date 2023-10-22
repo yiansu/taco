@@ -181,19 +181,19 @@ double HEARTBEAT_loop4(
 }
 
 void HEARTBEAT_loop3(
+  uint64_t maxIter,
   int A3_dimension,
   double* __restrict__ A_vals,
   int* __restrict__ B2_crd,
   int* __restrict__ B3_pos,
   int* __restrict__ B3_crd,
   double* __restrict__ B_vals,
-  uint64_t C1_dimension,
   int C2_dimension,
   double* __restrict__ C_vals,
   uint64_t jB,
   uint64_t jA
 ) {
-  for (uint64_t k = 0; k < C1_dimension; k++) {
+  for (uint64_t k = 0; k < maxIter; k++) {
     uint64_t kA = jA * A3_dimension + k;
     double tlA_val = 0.0;
     tlA_val += HEARTBEAT_loop4(B3_pos[jB], B3_pos[(jB + 1)], B3_crd, B_vals, C2_dimension, C_vals, k);
@@ -211,7 +211,7 @@ void HEARTBEAT_loop2(
   int* __restrict__ B3_pos,
   int* __restrict__ B3_crd,
   double* __restrict__ B_vals,
-  uint64_t C1_dimension,
+  int C1_dimension,
   int C2_dimension,
   double* __restrict__ C_vals,
   uint64_t i
@@ -219,7 +219,7 @@ void HEARTBEAT_loop2(
   for (uint64_t jB = startIter; jB < maxIter; jB++) {
     uint64_t j = B2_crd[jB];
     uint64_t jA = i * A2_dimension + j;
-    HEARTBEAT_loop3(A3_dimension, A_vals, B2_crd, B3_pos, B3_crd, B_vals, C1_dimension, C2_dimension, C_vals, jB, jA);
+    HEARTBEAT_loop3(C1_dimension, A3_dimension, A_vals, B2_crd, B3_pos, B3_crd, B_vals, C2_dimension, C_vals, jB, jA);
   }
 }
 
@@ -233,7 +233,7 @@ void HEARTBEAT_loop1(
   int* __restrict__ B3_pos,
   int* __restrict__ B3_crd,
   double* __restrict__ B_vals,
-  uint64_t C1_dimension,
+  int C1_dimension,
   int C2_dimension,
   double* __restrict__ C_vals
 ) {
