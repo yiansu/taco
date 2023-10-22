@@ -89,7 +89,21 @@ uint64_t leftover_selector(uint64_t receivingLevel, uint64_t splittingLevel) {
 #endif
 
 // Entry function
-void MTTKRP_hbm(int B1_dimension, int *B2_pos, int *B2_crd, int *B3_pos, int *B3_crd, int D2_dimension, int A2_dimension, int C2_dimension, double *A_vals, double *B_vals, double *C_vals, double *D_vals) {
+void MTTKRP_hbm(
+  int A1_dimension,
+  int A2_dimension,
+  double* __restrict__ A_vals,
+  int B1_dimension,
+  int* __restrict__ B2_pos,
+  int* __restrict__ B2_crd,
+  int* __restrict__ B3_pos,
+  int* __restrict__ B3_crd,
+  double* __restrict__ B_vals,
+  int C2_dimension,
+  double* __restrict__ C_vals,
+  int D2_dimension,
+  double* __restrict__ D_vals
+) {
   HEARTBEAT_loop0(B1_dimension, B2_pos, B2_crd, B3_pos, B3_crd, D2_dimension, A2_dimension, C2_dimension, A_vals, B_vals, C_vals, D_vals);
 }
 

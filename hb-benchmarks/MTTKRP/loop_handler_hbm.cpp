@@ -1,4 +1,4 @@
-#include "loop_handler.hpp"
+#include "loop_handler_hbm.hpp"
 #if defined(STATS)
 #include "utility.hpp"
 #include <stdio.h>
