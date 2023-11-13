@@ -16,7 +16,7 @@ int main(int argc, char* argv[]) {
   Format dss({Dense, Sparse, Sparse});
   Format dd({Dense, Dense});
 
-  auto tensor_file = "../nell-2.tns";
+  auto tensor_file = "inputs/nell-2.tns";
   if (const auto env_p = std::getenv("INPUT_TENSOR")) {
     tensor_file = env_p;
   }

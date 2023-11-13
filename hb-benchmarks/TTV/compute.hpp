@@ -84,6 +84,9 @@ void test_correctness(
 #endif
 
 #if defined(USE_OPENMP)
+
+#include <omp.h>
+
 void TTV_openmp(
   int A1_dimension,
   int A2_dimension,
@@ -96,18 +99,15 @@ void TTV_openmp(
   double* __restrict__ B_vals,
   double* __restrict__ c_vals
 ) {
-#if defined(OMP_SCHEDULE_STATIC)
-  #pragma omp parallel for schedule(static)
-#elif defined(OMP_SCHEDULE_DYNAMIC)
-  #pragma omp parallel for schedule(dynamic)
-#elif defined(OMP_SCHEDULE_GUIDED)
-  #pragma omp parallel for schedule(guided)
+#if defined(OMP_NESTED_PARALLELISM)
+  omp_set_max_active_levels(3);
 #endif
-  // #pragma omp parallel for schedule(static)
+  #pragma omp parallel for schedule(static)
   for (uint64_t pA = 0; pA < (A1_dimension * A2_dimension); pA++) {
     A_vals[pA] = 0.0;
   }
 
+#if !defined(OMP_CHUNKSIZE)
 #if defined(OMP_SCHEDULE_STATIC)
   #pragma omp parallel for schedule(static)
 #elif defined(OMP_SCHEDULE_DYNAMIC)
@@ -115,11 +115,58 @@ void TTV_openmp(
 #elif defined(OMP_SCHEDULE_GUIDED)
   #pragma omp parallel for schedule(guided)
 #endif
+#else
+#if defined(OMP_SCHEDULE_STATIC)
+  #pragma omp parallel for schedule(static, OMP_CHUNKSIZE)
+#elif defined(OMP_SCHEDULE_DYNAMIC)
+  #pragma omp parallel for schedule(dynamic, OMP_CHUNKSIZE)
+#elif defined(OMP_SCHEDULE_GUIDED)
+  #pragma omp parallel for schedule(guided, OMP_CHUNKSIZE)
+#endif
+#endif
   for (uint64_t i = 0; i < B1_dimension; i++) {
+#if defined(OMP_NESTED_PARALLELISM)
+#if !defined(OMP_CHUNKSIZE)
+#if defined(OMP_SCHEDULE_STATIC)
+    #pragma omp parallel for schedule(static)
+#elif defined(OMP_SCHEDULE_DYNAMIC)
+    #pragma omp parallel for schedule(dynamic)
+#elif defined(OMP_SCHEDULE_GUIDED)
+    #pragma omp parallel for schedule(guided)
+#endif
+#else
+#if defined(OMP_SCHEDULE_STATIC)
+    #pragma omp parallel for schedule(static, OMP_CHUNKSIZE)
+#elif defined(OMP_SCHEDULE_DYNAMIC)
+    #pragma omp parallel for schedule(dynamic, OMP_CHUNKSIZE)
+#elif defined(OMP_SCHEDULE_GUIDED)
+    #pragma omp parallel for schedule(guided, OMP_CHUNKSIZE)
+#endif
+#endif
+#endif
     for (uint64_t jB = B2_pos[i]; jB < B2_pos[(i + 1)]; jB++) {
       uint64_t j = B2_crd[jB];
       uint64_t jA = i * A2_dimension + j;
       double tkA_val = 0.0;
+#if defined(OMP_NESTED_PARALLELISM)
+#if !defined(OMP_CHUNKSIZE)
+#if defined(OMP_SCHEDULE_STATIC)
+      #pragma omp parallel for schedule(static) reduction(+:tkA_val)
+#elif defined(OMP_SCHEDULE_DYNAMIC)
+      #pragma omp parallel for schedule(dynamic) reduction(+:tkA_val)
+#elif defined(OMP_SCHEDULE_GUIDED)
+      #pragma omp parallel for schedule(guided) reduction(+:tkA_val)
+#endif
+#else
+#if defined(OMP_SCHEDULE_STATIC)
+      #pragma omp parallel for schedule(static, OMP_CHUNKSIZE) reduction(+:tkA_val)
+#elif defined(OMP_SCHEDULE_DYNAMIC)
+      #pragma omp parallel for schedule(dynamic, OMP_CHUNKSIZE) reduction(+:tkA_val)
+#elif defined(OMP_SCHEDULE_GUIDED)
+      #pragma omp parallel for schedule(guided, OMP_CHUNKSIZE) reduction(+:tkA_val)
+#endif
+#endif
+#endif
       for (uint64_t kB = B3_pos[jB]; kB < B3_pos[(jB + 1)]; kB++) {
         uint64_t k = B3_crd[kB];
         tkA_val += B_vals[kB] * c_vals[k];

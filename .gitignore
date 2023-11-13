@@ -12,3 +12,10 @@ CMakeCache.txt
 doc
 .idea/
 apps/tensor_times_vector/tensor_times_vector
+
+hb-benchmarks/*/Makefile
+hb-benchmarks/*/loop_handler.*
+hb-benchmarks/*/rf_test.cpp
+hb-benchmarks/*/utility.hpp
+hb-benchmarks/*/inputs
+hb-benchmarks/inputs

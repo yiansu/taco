@@ -25,7 +25,7 @@ openmp=false
 hbm_0_2=false     # this applies to MTTKRP only
 
 # benchmark targetted
-benchmarks=(MTTKRP TTM TTV)
+benchmarks=(TTM TTV)
 ########################################################
 
 function run_and_collect {
