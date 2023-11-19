@@ -14,6 +14,7 @@ int main(int argc, char* argv[]) {
 
   Format dd({Dense, Dense});
   Format dss({Dense, Sparse, Sparse});
+  Format dds({Dense, Dense, Sparse});
   Format d({Dense});
 
   auto tensor_file = "inputs/nell-2.tns";
